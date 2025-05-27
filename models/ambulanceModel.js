@@ -10,6 +10,10 @@ const AmbulanceSchema = new mongoose.Schema({
   dropLocation: { type: String, required: true },
   date: { type: Date, required: true },
   conditionTest: { type: Boolean, default: false },
+  // coordinates: {
+  //   lat: { type: Number },
+  //   lng: { type: Number }
+  // },
   createdAt: { type: Date, default: Date.now },
 });
 

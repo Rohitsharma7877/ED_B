@@ -38,6 +38,18 @@ const upload = multer({
 
 // CRUD Routes
 // Route for creating a subcategory
+
+// Add this temporary route to test the endpoint
+router.get("/test-names-test", async (req, res) => {
+  res.status(200).json({ 
+    data: [
+      { _id: "1", title: "CAROTID VERTEBRAL DOPPLER", expertSerialTestNo: "EX123", testNo: "T456" },
+      { _id: "2", title: "EXPERT CARE PACKAGE", expertSerialTestNo: "EX124", testNo: "T457" }
+    ] 
+  });
+});
+
+
 router.post(
   "/subcategories",
   upload.single("image"),
@@ -58,7 +70,9 @@ router.post(
 );
 
 router.get("/subcategories", subCategoryController.getAllSubCategories);
+router.get("/subcategories/test-names", subCategoryController.getAllTestNames);
 router.get("/subcategories/:id", subCategoryController.getSubCategoryById);
+
 router.put(
   "/subcategories/:id",
   upload.single("image"),

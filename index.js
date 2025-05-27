@@ -42,7 +42,8 @@ const uploadPrescriptionRoutes = require("./routes/uploadPrescriptionRoutes");
 const ambulanceRoutes = require("./routes/ambulanceRoutes");
 const serviceBookingRoutes = require("./routes/serviceBookingRoutes");
 const contactRoutes = require("./routes/contactRoutes");
-
+const careerRoutes = require("./routes/careerRoutes");
+const resumeRoutes = require("./routes/resumeRoutes");
 
 // use Routes
 app.use("/person", personRouter);
@@ -59,8 +60,15 @@ app.use("/api", uploadPrescriptionRoutes);
 app.use("/api/ambulance-services", ambulanceRoutes);
 app.use("/api/service-bookings", serviceBookingRoutes);
 app.use("/api/contact", contactRoutes);
+app.use("/api", careerRoutes);
+app.use("/api", resumeRoutes);
 
-
+// Create uploads directory if it doesn't exist
+const fs = require("fs");
+const uploadDir = path.join(__dirname, "uploads/resumes");
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir, { recursive: true });
+}
 
 
 // Start the server

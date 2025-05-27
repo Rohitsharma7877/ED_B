@@ -12,7 +12,9 @@ const subCategorySchema = new mongoose.Schema({
   discountedPrice: { type: String, required: true },
   contrastPrice: { type: String, required: true }, // New field
   homeCollection: { type: String, required: true },
-  createdAt: { type: Date, default: Date.now },
-});
+  image: { type: String },
+}, { timestamps: true });
+//   createdAt: { type: Date, default: Date.now },
+// });
 
 module.exports = mongoose.model("SubCategory", subCategorySchema);

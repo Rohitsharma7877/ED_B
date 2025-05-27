@@ -61,6 +61,19 @@ exports.getAllSubCategories = async (req, res) => {
   }
 };
 
+// Get all test names for search
+exports.getAllTestNames = async (req, res) => {
+  try {
+    const testNames = await SubCategory.find({}, 'title expertSerialTestNo testNo'); // Only return title and IDs
+    res.status(200).json({ data: testNames });
+  } catch (err) {
+    res.status(500).json({ 
+      error: "Failed to fetch test names", 
+      details: err.message 
+    });
+  }
+};
+
 // Get a single SubCategory by ID
 exports.getSubCategoryById = async (req, res) => {
   try {
