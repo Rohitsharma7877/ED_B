@@ -7,27 +7,39 @@ router.post("/", async (req, res) => {
   try {
     const {
       serviceType,
+      testName,
       name,
       email,
       mobile,
       age,
       gender,
-      appointmentDate,
+      appointmentDate
     } = req.body;
 
     // Validate required fields
-    if (!serviceType || !name || !email || !mobile || !age || !gender || !appointmentDate) {
-      return res.status(400).json({ message: "All fields are required" });
+    const requiredFields = [
+      "serviceType", "testName", "name", "email", 
+      "mobile", "age", "gender", "appointmentDate"
+    ];
+    
+    const missingFields = requiredFields.filter(field => !req.body[field]);
+    
+    if (missingFields.length > 0) {
+      return res.status(400).json({
+        message: "All fields are required",
+        missingFields
+      });
     }
 
     const newBooking = new ServiceBooking({
       serviceType,
+      testName,
       name,
       email,
       mobile,
       age,
       gender,
-      appointmentDate,
+      appointmentDate
     });
 
     await newBooking.save();
@@ -38,15 +50,70 @@ router.post("/", async (req, res) => {
   }
 });
 
-// Get all service bookings
+// Get all service bookings with sorting and filtering
 router.get("/", async (req, res) => {
   try {
-    const bookings = await ServiceBooking.find().sort({ createdAt: -1 });
+    const { serviceType, status, fromDate, toDate } = req.query;
+    let query = {};
+
+    // Add filters if provided
+    if (serviceType) query.serviceType = serviceType;
+    if (status) query.status = status;
+    if (fromDate || toDate) {
+      query.appointmentDate = {};
+      if (fromDate) query.appointmentDate.$gte = new Date(fromDate);
+      if (toDate) query.appointmentDate.$lte = new Date(toDate);
+    }
+
+    const bookings = await ServiceBooking.find(query)
+      .sort({ appointmentDate: 1, createdAt: -1 });
+      
     res.json(bookings);
   } catch (error) {
     console.error("Error fetching service bookings:", error);
     res.status(500).json({ message: "Internal server error" });
   }
 });
+
+// Update booking status
+// Update booking status
+router.patch("/:id/status", async (req, res) => {
+  try {
+    const { status } = req.body;
+
+    // Validate status input
+    const validStatuses = ["Pending", "Confirmed", "Completed", "Cancelled"];
+    if (!status || !validStatuses.includes(status)) {
+      return res.status(400).json({ 
+        message: "Valid status is required",
+        validStatuses
+      });
+    }
+
+    const booking = await ServiceBooking.findByIdAndUpdate(
+      req.params.id,
+      { status },
+      { new: true, runValidators: true }
+    );
+    
+    if (!booking) {
+      return res.status(404).json({ message: "Booking not found" });
+    }
+    
+    res.json({
+      success: true,
+      message: "Status updated successfully",
+      booking
+    });
+  } catch (error) {
+    console.error("Error updating booking status:", error);
+    res.status(500).json({ 
+      success: false,
+      message: "Failed to update status",
+      error: error.message 
+    });
+  }
+});
+
 
 module.exports = router;

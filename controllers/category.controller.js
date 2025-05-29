@@ -85,10 +85,11 @@ exports.updateCategory = async (req, res) => {
       data: updatedCategory,
     });
   } catch (err) {
-    res.status(500).json({ error: "Failed to update Category", details: err.message });
+    res
+      .status(500)
+      .json({ error: "Failed to update Category", details: err.message });
   }
 };
-
 
 // Delete a Category by ID
 exports.deleteCategory = async (req, res) => {
