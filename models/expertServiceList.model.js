@@ -9,6 +9,7 @@ const expertServiceListSchema = new mongoose.Schema({
   discountPercent: { type: Number, required: true },
   howManyTest: { type: Number, required: true },
   reportTime: { type: Number, required: true },
+  consultation: { type: String, required: true }, // Added this line
   tagLine: { type: String, required: true },
   description: { type: String, required: true },
   selectedTests: { type: [String], required: true },

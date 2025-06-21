@@ -1,13 +1,21 @@
-const jwt = require("jsonwebtoken");
+// authMiddleware.js
+const jwt = require('jsonwebtoken');
 
-const generateToken = (userData) => {
-  const payload = {
-    id: userData.id,
-    email: userData.email,
-    // Add issued at time for tracking
-    iat: Math.floor(Date.now() / 1000)
-  };
-  return jwt.sign(payload, process.env.JWT_SECRETKEY, { expiresIn: "1h" });
+const verifyToken = (req, res, next) => {
+  const token = req.headers.authorization?.split(' ')[1];
+  
+  if (!token) {
+    return res.status(401).json({ error: 'No token provided' });
+  }
+
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRETKEY);
+    req.user = decoded;
+    next();
+  } catch (err) {
+    return res.status(401).json({ 
+      error: 'Invalid or expired token',
+      success: false
+    });
+  }
 };
-
-module.exports = { generateToken };

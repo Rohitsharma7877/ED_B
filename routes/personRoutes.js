@@ -28,32 +28,10 @@ router.post("/signup", async (req, res) => {
   }
 });
 
-router.post("/send-otp", async (req, res) => {
-  try {
-    const { mobile } = req.body;
 
-    // Check if the mobile number exists
-    const user = await Person.findOne({ mobile });
-    if (!user) {
-      return res.status(404).json({ error: "Mobile number not registered!" });
-    }
-
-    // Generate and send OTP
-    const otp = generateOtp();
-    await sendOtp(mobile, otp); // Send OTP via Twilio
-    user.otp = otp; // Save OTP in the database
-    await user.save();
-
-    res.status(200).json({ message: "OTP sent successfully!" });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Failed to send OTP." });
-  }
-});
 
 // routes/person.routes.js
 
-// Update the send-otp route
 router.post("/send-otp", async (req, res) => {
   try {
     const { mobile, name, email } = req.body;
@@ -62,17 +40,18 @@ router.post("/send-otp", async (req, res) => {
     let user = await Person.findOne({ mobile });
 
     if (!user) {
-      // Create new user if doesn't exist
+      // Create new user with a random password
       const tempPassword = Math.random().toString(36).slice(-8);
       user = new Person({ 
-        name, 
-        email, 
+        name: name || 'User',
+        email: email || '',
         mobile, 
-        password: tempPassword 
+        password: tempPassword,
+        cart: [] // Initialize empty cart
       });
       await user.save();
     } else {
-      // Update name and email if provided
+      // Update user details if provided
       if (name) user.name = name;
       if (email) user.email = email;
       await user.save();
@@ -127,6 +106,7 @@ router.post("/verify-otp", async (req, res) => {
       message: "Login successful!",
       token,
       user: {
+        id: user._id, // Include MongoDB _id
         name: user.name,
         email: user.email,
         mobile: user.mobile
@@ -142,7 +122,73 @@ router.post("/verify-otp", async (req, res) => {
   }
 });
 
+// In person.routes.js or cart.routes.js
+
+// Add to cart endpoint
+router.post("/cart/add", verifyToken, async (req, res) => {
+  try {
+    const { testId } = req.body;
+    const user = await Person.findById(req.user.id);
+    
+    // Check if item already in cart
+    const existingItem = user.cart.find(item => item.testId.equals(testId));
+    
+    if (existingItem) {
+      existingItem.quantity += 1;
+    } else {
+      user.cart.push({ testId });
+    }
+    
+    await user.save();
+    
+    res.status(200).json({
+      success: true,
+      message: "Item added to cart",
+      cart: user.cart
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to add to cart" });
+  }
+});
+
+
+
+// Remove from cart endpoint (optional but recommended)
+router.post("/cart/remove", verifyToken, async (req, res) => {
+  try {
+    const { testId } = req.body;
+    const user = await Person.findById(req.user.id);
+    
+    user.cart = user.cart.filter(item => !item.testId.equals(testId));
+    await user.save();
+    
+    res.status(200).json({
+      success: true,
+      message: "Item removed from cart",
+      cart: user.cart
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to remove from cart" });
+  }
+});
+
 // Add protected routes
+// Get cart items endpoint
+router.get("/cart", verifyToken, async (req, res) => {
+  try {
+    const user = await Person.findById(req.user.id).populate('cart.testId');
+    res.status(200).json({
+      success: true,
+      cart: user.cart
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to fetch cart" });
+  }
+});
+
 router.get("/profile", verifyToken, async (req, res) => {
   try {
     const user = await Person.findById(req.user.id).select('-password -otp');

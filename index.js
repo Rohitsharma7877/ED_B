@@ -11,10 +11,11 @@ app.use(express.json());
 app.use(bodyParser.json());
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 app.use(cors({
-  origin: "http://localhost:3000", // or your frontend URL
-  methods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+  origin: "http://localhost:3000",
+  methods: ["GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization"]
 }));
+
 
 // Middleware function to log requests
 const logRequest = (req, res, next) => {

@@ -3,10 +3,18 @@ const bcrypt = require("bcrypt");
 
 const personSchema = new mongoose.Schema({
   name: { type: String, required: true },
-  email: { type: String, required: true, unique: true },
+  email: { type: String },
   mobile: { type: String, required: true, unique: true },
-  password: { type: String, required: true },
-  otp: { type: String } // Temporary field for storing OTP
+  password: { type: String },
+  otp: { type: String },
+  cart: [
+    {
+      testId: { type: mongoose.Schema.Types.ObjectId, ref: 'Test' }, // Assuming you have a Test model
+      quantity: { type: Number, default: 1 },
+      addedAt: { type: Date, default: Date.now }
+    }
+  ],
+  createdAt: { type: Date, default: Date.now }
 });
 
 // Encrypt the password before saving

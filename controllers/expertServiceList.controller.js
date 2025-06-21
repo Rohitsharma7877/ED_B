@@ -12,6 +12,7 @@ exports.createExpertServiceList = async (req, res) => {
       discountPercent,
       howManyTest,
       reportTime,
+      consultation, // Added this
       tagLine,
       description,
       selectedTests,
@@ -26,6 +27,7 @@ exports.createExpertServiceList = async (req, res) => {
       discountPercent,
       howManyTest,
       reportTime,
+      consultation, // Added this
       tagLine,
       description,
       selectedTests,
@@ -85,6 +87,7 @@ exports.updateExpertServiceList = async (req, res) => {
       discountPercent,
       howManyTest,
       reportTime,
+      consultation, // Added this
       tagLine,
       description,
       selectedTests,
@@ -101,6 +104,7 @@ exports.updateExpertServiceList = async (req, res) => {
         discountPercent,
         howManyTest,
         reportTime,
+        consultation, // Added this
         tagLine,
         description,
         selectedTests,
@@ -129,7 +133,9 @@ exports.deleteExpertServiceList = async (req, res) => {
     if (!deletedExpertServiceList) {
       return res.status(404).json({ error: "ExpertServiceList not found" });
     }
-    res.status(200).json({ message: "ExpertServiceList deleted successfully!" });
+    res
+      .status(200)
+      .json({ message: "ExpertServiceList deleted successfully!" });
   } catch (err) {
     res.status(500).json({
       error: "Failed to delete ExpertServiceList",
