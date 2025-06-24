@@ -7,15 +7,25 @@ const personSchema = new mongoose.Schema({
   mobile: { type: String, required: true, unique: true },
   password: { type: String },
   otp: { type: String },
+  otpExpiresAt: { type: Date },
   cart: [
-    {
-      testId: { type: mongoose.Schema.Types.ObjectId, ref: 'Test' }, // Assuming you have a Test model
-      quantity: { type: Number, default: 1 },
-      addedAt: { type: Date, default: Date.now }
-    }
-  ],
+  {
+    testId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Test", // 👈 model name must be exactly "Test"
+      required: true,
+    },
+    quantity: { type: Number, default: 1 },
+    addedAt: { type: Date, default: Date.now },
+  },
+],
   createdAt: { type: Date, default: Date.now }
+}, {
+  toJSON: { virtuals: true },
+  toObject: { virtuals: true }
 });
+
+
 
 // Encrypt the password before saving
 personSchema.pre("save", async function (next) {

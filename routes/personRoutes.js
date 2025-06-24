@@ -4,7 +4,13 @@ const Person = require("../models/person.models");
 const { generateToken } = require("../Middleware/jwt");
 const { sendOtp, generateOtp } = require("../utils/otpUtils");
 const verifyToken = require("../Middleware/authMiddleware"); // Add this line
+const Test = require("../models/test.model");
+const mongoose = require("mongoose");  // Add this line at the top
 
+// Helper function for error responses
+const errorResponse = (res, status, message) => {
+  return res.status(status).json({ success: false, error: message });
+};
 
 
 router.post("/signup", async (req, res) => {
@@ -28,8 +34,6 @@ router.post("/signup", async (req, res) => {
   }
 });
 
-
-
 // routes/person.routes.js
 
 router.post("/send-otp", async (req, res) => {
@@ -42,12 +46,12 @@ router.post("/send-otp", async (req, res) => {
     if (!user) {
       // Create new user with a random password
       const tempPassword = Math.random().toString(36).slice(-8);
-      user = new Person({ 
-        name: name || 'User',
-        email: email || '',
-        mobile, 
+      user = new Person({
+        name: name || "User",
+        email: email || "",
+        mobile,
         password: tempPassword,
-        cart: [] // Initialize empty cart
+        cart: [], // Initialize empty cart
       });
       await user.save();
     } else {
@@ -61,96 +65,149 @@ router.post("/send-otp", async (req, res) => {
     const otp = generateOtp();
     await sendOtp(mobile, otp);
     user.otp = otp;
+    user.otpExpiresAt = new Date(Date.now() + 5 * 60 * 1000);
     await user.save();
 
-    res.status(200).json({ 
+    res.status(200).json({
       message: "OTP sent successfully!",
-      success: true
+      success: true,
     });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ 
+    res.status(500).json({
       error: "Failed to send OTP.",
-      success: false
+      success: false,
     });
   }
 });
 
-// Update the verify-otp route
-// In your backend routes (person.routes.js)
+// POST /person/verify-otp
 router.post("/verify-otp", async (req, res) => {
   try {
     const { mobile, otp, name, email } = req.body;
 
     const user = await Person.findOne({ mobile });
-    if (!user || user.otp !== otp) {
+    if (!user.otp || !user.otpExpiresAt || new Date() > user.otpExpiresAt) {
+      return res.status(400).json({
+        error: "OTP expired. Please request a new one.",
+        success: false,
+      });
+    }
+
+    if (user.otp !== otp) {
       return res.status(400).json({
         error: "Invalid OTP!",
         success: false,
       });
     }
 
-    // Update user details if provided
+    // Optional updates
     if (name) user.name = name;
     if (email) user.email = email;
+
+    // Clear OTP
     user.otp = null;
+    user.otpExpiresAt = null;
     await user.save();
 
-    const token = generateToken({ 
-      id: user._id, 
+    // ✅ Correct token creation
+    const token = generateToken({
+      id: user._id,
       email: user.email,
-      mobile: user.mobile
+      mobile: user.mobile,
     });
 
+    // ✅ Correct response
     res.status(200).json({
       message: "Login successful!",
       token,
       user: {
-        id: user._id, // Include MongoDB _id
+        id: user._id,
         name: user.name,
         email: user.email,
-        mobile: user.mobile
+        mobile: user.mobile,
       },
       success: true,
     });
   } catch (err) {
-    console.error(err);
+    console.error("OTP verification error:", err.message);
     res.status(500).json({
-      error: "OTP verification failed.",
+      error: "OTP verification failed: " + err.message,
       success: false,
     });
   }
 });
 
-// In person.routes.js or cart.routes.js
 
-// Add to cart endpoint
+
+// In person.routes.js or cart.routes.js
 router.post("/cart/add", verifyToken, async (req, res) => {
+  console.log("✅ /person/cart/add HIT with body:", req.body);
+
+  const { testId } = req.body;
+
+  if (!testId || !mongoose.Types.ObjectId.isValid(testId)) {
+    return res.status(400).json({ error: "Invalid or missing Test ID" });
+  }
+
   try {
-    const { testId } = req.body;
-    const user = await Person.findById(req.user.id);
-    
-    // Check if item already in cart
-    const existingItem = user.cart.find(item => item.testId.equals(testId));
-    
+    const [user, test] = await Promise.all([
+      Person.findById(req.user.id),
+      Test.findById(testId)
+    ]);
+
+    if (!user) return res.status(404).json({ error: "User not found" });
+    if (!test) return res.status(404).json({ error: "Test not found" });
+
+    const existingItem = user.cart.find(item => item.testId.toString() === testId);
+
     if (existingItem) {
       existingItem.quantity += 1;
     } else {
-      user.cart.push({ testId });
+      user.cart.push({
+        testId: test._id,
+        quantity: 1,
+        addedAt: new Date()
+      });
     }
-    
+
     await user.save();
-    
+
+    const populatedUser = await Person.findById(user._id).populate("cart.testId");
+
     res.status(200).json({
       success: true,
-      message: "Item added to cart",
-      cart: user.cart
+      message: `${test.title} added to cart`,
+      cart: populatedUser.cart
     });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Failed to add to cart" });
+    console.error("🔥 Error in /cart/add:", err);
+    res.status(500).json({ error: "Failed to add test to cart" });
   }
 });
+
+// ✅ Fetch Cart Route (for Cart2.jsx)
+router.get("/cart", verifyToken, async (req, res) => {
+  try {
+    const user = await Person.findById(req.user.id).populate("cart.testId");
+
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    const validCart = user.cart.filter(item => item.testId !== null);
+
+    res.status(200).json({
+      success: true,
+      cart: validCart
+    });
+  } catch (err) {
+    console.error("🔥 Error fetching cart:", err);
+    res.status(500).json({ error: "Failed to fetch cart" });
+  }
+});
+
+
 
 
 
@@ -159,14 +216,14 @@ router.post("/cart/remove", verifyToken, async (req, res) => {
   try {
     const { testId } = req.body;
     const user = await Person.findById(req.user.id);
-    
-    user.cart = user.cart.filter(item => !item.testId.equals(testId));
+
+    user.cart = user.cart.filter((item) => !item.testId.equals(testId));
     await user.save();
-    
+
     res.status(200).json({
       success: true,
       message: "Item removed from cart",
-      cart: user.cart
+      cart: user.cart,
     });
   } catch (err) {
     console.error(err);
@@ -174,24 +231,9 @@ router.post("/cart/remove", verifyToken, async (req, res) => {
   }
 });
 
-// Add protected routes
-// Get cart items endpoint
-router.get("/cart", verifyToken, async (req, res) => {
-  try {
-    const user = await Person.findById(req.user.id).populate('cart.testId');
-    res.status(200).json({
-      success: true,
-      cart: user.cart
-    });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Failed to fetch cart" });
-  }
-});
-
 router.get("/profile", verifyToken, async (req, res) => {
   try {
-    const user = await Person.findById(req.user.id).select('-password -otp');
+    const user = await Person.findById(req.user.id).select("-password -otp");
     if (!user) {
       return res.status(404).json({ error: "User not found" });
     }
@@ -204,10 +246,12 @@ router.get("/profile", verifyToken, async (req, res) => {
 
 router.post("/logout", (req, res) => {
   // In a real implementation, you might want to add the token to a blacklist
-  res.status(200).json({ 
+  res.status(200).json({
     message: "Logged out successfully",
-    success: true 
+    success: true,
   });
 });
 
+
+console.log("✅ personRoutes.js loaded");
 module.exports = router;
