@@ -5,13 +5,14 @@ const { generateToken } = require("../Middleware/jwt");
 const { sendOtp, generateOtp } = require("../utils/otpUtils");
 const verifyToken = require("../Middleware/authMiddleware"); // Add this line
 const Test = require("../models/test.model");
-const mongoose = require("mongoose");  // Add this line at the top
+const mongoose = require("mongoose"); // Add this line at the top
+const SubCategory = require("../models/subCategory.model");
+
 
 // Helper function for error responses
 const errorResponse = (res, status, message) => {
   return res.status(status).json({ success: false, error: message });
 };
-
 
 router.post("/signup", async (req, res) => {
   try {
@@ -138,28 +139,40 @@ router.post("/verify-otp", async (req, res) => {
   }
 });
 
-
-
 // In person.routes.js or cart.routes.js
 router.post("/cart/add", verifyToken, async (req, res) => {
-  console.log("✅ /person/cart/add HIT with body:", req.body);
-
-  const { testId } = req.body;
-
-  if (!testId || !mongoose.Types.ObjectId.isValid(testId)) {
-    return res.status(400).json({ error: "Invalid or missing Test ID" });
-  }
-
   try {
-    const [user, test] = await Promise.all([
-      Person.findById(req.user.id),
-      Test.findById(testId)
-    ]);
+    // Validate input
+    const { testId } = req.body;
+    if (!testId) {
+      return res.status(400).json({ 
+        success: false,
+        error: "Test ID is required" 
+      });
+    }
 
-    if (!user) return res.status(404).json({ error: "User not found" });
-    if (!test) return res.status(404).json({ error: "Test not found" });
+    // Verify test exists
+    const test = await SubCategory.findById(testId);
+    if (!test) {
+      return res.status(404).json({ 
+        success: false,
+        error: "Test not found" 
+      });
+    }
 
-    const existingItem = user.cart.find(item => item.testId.toString() === testId);
+    // Verify user exists
+    const user = await Person.findById(req.user.id);
+    if (!user) {
+      return res.status(404).json({ 
+        success: false,
+        error: "User not found" 
+      });
+    }
+
+    // Add to cart
+    const existingItem = user.cart.find(item => 
+      item.testId.toString() === testId
+    );
 
     if (existingItem) {
       existingItem.quantity += 1;
@@ -173,21 +186,28 @@ router.post("/cart/add", verifyToken, async (req, res) => {
 
     await user.save();
 
-    const populatedUser = await Person.findById(user._id).populate("cart.testId");
-
-    res.status(200).json({
+    return res.json({
       success: true,
       message: `${test.title} added to cart`,
-      cart: populatedUser.cart
+      cart: user.cart
     });
+
   } catch (err) {
-    console.error("🔥 Error in /cart/add:", err);
-    res.status(500).json({ error: "Failed to add test to cart" });
+    console.error("Cart addition error:", err);
+    return res.status(500).json({
+      success: false,
+      error: "Internal server error",
+      detailedError: process.env.NODE_ENV === 'development' ? {
+        message: err.message,
+        stack: err.stack
+      } : undefined
+    });
   }
 });
 
 // ✅ Fetch Cart Route (for Cart2.jsx)
 router.get("/cart", verifyToken, async (req, res) => {
+  // const user = await Person.findById(req.user.id).populate("cart.testId");
   try {
     const user = await Person.findById(req.user.id).populate("cart.testId");
 
@@ -195,21 +215,17 @@ router.get("/cart", verifyToken, async (req, res) => {
       return res.status(404).json({ error: "User not found" });
     }
 
-    const validCart = user.cart.filter(item => item.testId !== null);
+    const validCart = user.cart.filter((item) => item.testId !== null);
 
     res.status(200).json({
       success: true,
-      cart: validCart
+      cart: validCart,
     });
   } catch (err) {
     console.error("🔥 Error fetching cart:", err);
     res.status(500).json({ error: "Failed to fetch cart" });
   }
 });
-
-
-
-
 
 // Remove from cart endpoint (optional but recommended)
 router.post("/cart/remove", verifyToken, async (req, res) => {
@@ -251,7 +267,6 @@ router.post("/logout", (req, res) => {
     success: true,
   });
 });
-
 
 console.log("✅ personRoutes.js loaded");
 module.exports = router;

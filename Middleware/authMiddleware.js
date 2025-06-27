@@ -1,6 +1,7 @@
 const jwt = require("jsonwebtoken");
 
 const verifyToken = (req, res, next) => {
+   console.log("🔐 verifyToken middleware triggered");
   const token = req.headers.authorization?.split(" ")[1];
 
   if (!token) {
