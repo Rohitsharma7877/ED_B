@@ -207,23 +207,31 @@ router.post("/cart/add", verifyToken, async (req, res) => {
 
 // ✅ Fetch Cart Route (for Cart2.jsx)
 router.get("/cart", verifyToken, async (req, res) => {
-  // const user = await Person.findById(req.user.id).populate("cart.testId");
   try {
-    const user = await Person.findById(req.user.id).populate("cart.testId");
+    const user = await Person.findById(req.user.id)
+      .populate({
+        path: 'cart.testId',
+        model: 'SubCategory',
+        select: 'title image oldPrice homeCollection contrastPrice'
+      });
 
     if (!user) {
       return res.status(404).json({ error: "User not found" });
     }
 
-    const validCart = user.cart.filter((item) => item.testId !== null);
+    // Filter out any null references without losing all items
+    const validCart = user.cart.filter(item => item.testId != null);
 
     res.status(200).json({
       success: true,
-      cart: validCart,
+      cart: validCart
     });
   } catch (err) {
-    console.error("🔥 Error fetching cart:", err);
-    res.status(500).json({ error: "Failed to fetch cart" });
+    console.error("Error fetching cart:", err);
+    res.status(500).json({ 
+      error: "Failed to fetch cart",
+      details: err.message 
+    });
   }
 });
 
