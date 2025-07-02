@@ -18,7 +18,9 @@ app.use(cors({
   allowedHeaders: ["Content-Type", "Authorization"]
 }));
 
-
+app.get('/', (req, res) => {
+  res.send('Backend is running 🚀');
+});
 
 // Request Logger Middleware
 app.use((req, res, next) => {
