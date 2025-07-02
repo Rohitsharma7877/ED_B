@@ -1,42 +1,40 @@
-const twilio = require("twilio");
+const axios = require("axios");
 
-const accountSid = process.env.TWILIO_ACCOUNT_SID; // Twilio Account SID
-const authToken = process.env.TWILIO_AUTH_TOKEN; // Twilio Auth Token
-const client = twilio(accountSid, authToken);
+// MessageCentral environment credentials
+const CUSTOMER_ID = process.env.MESSAGECENTRAL_CUSTOMER_ID;
+const BASE64_PASSWORD = process.env.MESSAGECENTRAL_BASE64_PASSWORD;
+const EMAIL = process.env.MESSAGECENTRAL_EMAIL;
 
-// Generate a 4-digit OTP
-const generateOtp = () => {
-  return Math.floor(1000 + Math.random() * 9000).toString(); // Random 4-digit number
+// Step 1: Generate token from MessageCentral
+const getAuthToken = async () => {
+  const url = `https://cpaas.messagecentral.com/auth/v1/authentication/token?customerId=${CUSTOMER_ID}&key=${BASE64_PASSWORD}&scope=NEW&country=91&email=${EMAIL}`;
+  const response = await axios.get(url);
+  return response.data.token;
 };
 
-// Send OTP using Twilio
-const sendOtp = async (mobile, otp) => {
-  try {
-    const recipient = `+91${mobile}`; // Format with country code
-    
-    // Don't log the actual OTP in production
-    if (process.env.NODE_ENV !== 'production') {
-      console.log(`Sending OTP to ${mobile.substring(0, 3)}XXXXX${mobile.substring(8)}`);
-    }
+// Step 2: Send OTP to user via SMS
+const sendOtp = async (mobile) => {
+  const authToken = await getAuthToken();
+  const url = `https://cpaas.messagecentral.com/verification/v3/send?countryCode=91&flowType=SMS&mobileNumber=${mobile}`;
+  const response = await axios.post(url, null, {
+    headers: { authToken }
+  });
 
-    const message = await client.messages.create({
-      body: `Your OTP is ${otp}. It will expire in 5 minutes.`,
-      from: process.env.TWILIO_PHONE_NUMBER,
-      to: recipient,
-    });
-
-    if (process.env.NODE_ENV !== 'production') {
-      console.log('OTP sent successfully (details hidden in production)');
-    }
-    
-    return message.sid;
-  } catch (err) {
-    console.error("Error sending OTP:", err.message); // Only log error message, not full error
-    throw new Error("Failed to send OTP.");
-  }
+  return response.data.data.verificationId;
 };
-  
-  
-  
 
-module.exports = { generateOtp, sendOtp };
+// Step 3: Validate OTP using verificationId and user code
+const validateOtp = async (verificationId, code) => {
+  const authToken = await getAuthToken();
+  const url = `https://cpaas.messagecentral.com/verification/v3/validateOtp?verificationId=${verificationId}&code=${code}`;
+  const response = await axios.get(url, {
+    headers: { authToken }
+  });
+
+  return response.data.data.verificationStatus === "VERIFICATION_COMPLETED";
+};
+
+module.exports = {
+  sendOtp,
+  validateOtp
+};
