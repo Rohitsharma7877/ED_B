@@ -11,16 +11,26 @@ const personSchema = new mongoose.Schema({
   verificationId: { type: String, default: null }, // ✅ ADD THIS LINE
 
   cart: [
-    {
-      testId: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "Test", // 👈 this is fine if your test model is named "Test"
-        required: true,
-      },
-      quantity: { type: Number, default: 1 },
-      addedAt: { type: Date, default: Date.now },
+  {
+    testId: {
+      type: mongoose.Schema.Types.ObjectId,
+      required: true
     },
-  ],
+    quantity: {
+      type: Number,
+      default: 1,
+      min: 1
+    },
+    addedAt: {
+      type: Date,
+      default: Date.now
+    },
+    isExpertPackage: {
+      type: Boolean,
+      default: false
+    }
+  }
+],
 
   createdAt: { type: Date, default: Date.now }
 }, {

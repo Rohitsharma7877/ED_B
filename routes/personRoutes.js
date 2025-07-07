@@ -6,6 +6,8 @@ const { sendOtp, validateOtp } = require("../utils/otpUtils");
 const verifyToken = require("../Middleware/authMiddleware");
 const SubCategory = require("../models/subCategory.model");
 const mongoose = require("mongoose");
+const ExpertServiceList = require("../models/expertServiceList.model");
+
 
 // Register New User
 router.post("/signup", async (req, res) => {
@@ -90,51 +92,123 @@ router.post("/verify-otp", async (req, res) => {
 // Add to Cart
 router.post("/cart/add", verifyToken, async (req, res) => {
   try {
-    const { testId } = req.body;
-    if (!testId) return res.status(400).json({ success: false, error: "Test ID is required" });
-
-    const test = await SubCategory.findById(testId);
-    if (!test) return res.status(404).json({ success: false, error: "Test not found" });
-
-    const user = await Person.findById(req.user.id);
-    if (!user) return res.status(404).json({ success: false, error: "User not found" });
-
-    const existingItem = user.cart.find(item => item.testId.toString() === testId);
-    if (existingItem) {
-      existingItem.quantity += 1;
-    } else {
-      user.cart.push({ testId: test._id, quantity: 1, addedAt: new Date() });
+    console.log("📦 Cart add request:", req.body);
+    const { testId, isExpertPackage = false } = req.body;
+    
+    // Validate testId
+    if (!mongoose.Types.ObjectId.isValid(testId)) {
+      return res.status(400).json({
+        success: false,
+        error: "Invalid test ID format"
+      });
     }
 
-    await user.save();
-    res.json({
-      success: true,
-      message: `${test.title} added to cart`,
-      cart: user.cart
-    });
+    // Find user
+    const user = await Person.findById(req.user.id);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        error: "User not found"
+      });
+    }
+
+    // For expert packages, skip existence check
+    if (!isExpertPackage) {
+      const testExists = await SubCategory.findById(testId);
+      if (!testExists) {
+        return res.status(404).json({
+          success: false,
+          error: "Test not found"
+        });
+      }
+    }
+
+    // Prepare cart item
+    const cartItem = {
+      testId: new mongoose.Types.ObjectId(testId),
+      quantity: 1,
+      addedAt: new Date(),
+      isExpertPackage
+    };
+
+    // Check if item already exists in cart
+    const existingIndex = user.cart.findIndex(item => 
+      item.testId.toString() === testId && 
+      item.isExpertPackage === isExpertPackage
+    );
+
+    if (existingIndex >= 0) {
+      user.cart[existingIndex].quantity += 1;
+    } else {
+      user.cart.push(cartItem);
+    }
+
+    // Save with error handling
+    try {
+      const savedUser = await user.save();
+      console.log("✅ Cart updated:", savedUser.cart);
+      return res.json({
+        success: true,
+        message: "Item added to cart",
+        cart: savedUser.cart
+      });
+    } catch (saveError) {
+      console.error("💥 Save error:", saveError);
+      return res.status(500).json({
+        success: false,
+        error: "Failed to update cart",
+        details: process.env.NODE_ENV === 'development' ? saveError.message : undefined
+      });
+    }
+
   } catch (err) {
-    console.error("Cart addition error:", err);
-    res.status(500).json({ success: false, error: "Internal server error" });
+    console.error("🔥 Route error:", err);
+    return res.status(500).json({
+      success: false,
+      error: "Internal server error",
+      details: process.env.NODE_ENV === 'development' ? err.message : undefined
+    });
   }
 });
 
 // Fetch Cart
 router.get("/cart", verifyToken, async (req, res) => {
   try {
-    const user = await Person.findById(req.user.id).populate({
-      path: "cart.testId",
-      model: "SubCategory",
-      select: "title image oldPrice homeCollection contrastPrice"
-    });
+    const user = await Person.findById(req.user.id);
     if (!user) return res.status(404).json({ error: "User not found" });
 
-    const validCart = user.cart.filter(item => item.testId != null);
+    const populatedCart = await Promise.all(
+      user.cart.map(async (item) => {
+        let testData = null;
+
+        if (item.isExpertPackage) {
+          // Expert Package → from ExpertServiceList
+          testData = await ExpertServiceList.findById(item.testId).select(
+            "testName oldPrice discountPrice discountPercent howManyTest reportTime consultation tagLine description selectedTests"
+          );
+        } else {
+          // Regular Test → from SubCategory
+          testData = await SubCategory.findById(item.testId).select(
+            "title image oldPrice contrastPrice homeCollection"
+          );
+        }
+
+        return {
+          ...item.toObject(),
+          testId: testData || null,
+        };
+      })
+    );
+
+    const validCart = populatedCart.filter((item) => item.testId !== null);
     res.status(200).json({ success: true, cart: validCart });
   } catch (err) {
     console.error("Error fetching cart:", err);
     res.status(500).json({ error: "Failed to fetch cart" });
   }
 });
+
+
 
 // Remove from Cart
 router.post("/cart/remove", verifyToken, async (req, res) => {
