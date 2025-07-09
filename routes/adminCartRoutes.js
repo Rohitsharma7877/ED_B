@@ -7,30 +7,39 @@ const verifyToken = require("../Middleware/authMiddleware");
 // Save cart to admin view
 router.post("/save", verifyToken, async (req, res) => {
   try {
+     console.log("Received cart data:", req.body)
     const { cart } = req.body;
     const userId = req.user.id;
 
-    // Get user details
+    if (!cart || cart.length === 0) {
+      return res.status(400).json({ 
+        success: false,
+        message: "Cart is empty"
+      });
+    }
+
     const user = await Person.findById(userId);
     if (!user) {
-      return res.status(404).json({ error: "User not found" });
+      return res.status(404).json({ 
+        success: false,
+        message: "User not found" 
+      });
     }
 
     // Calculate total amount
     const totalAmount = cart.reduce((total, item) => {
-      const testData = item.subCategoryId || item.testId;
+      const testData = item.testId || item.subCategoryId;
       return total + (testData?.oldPrice || 0) * (item.quantity || 1);
     }, 0);
 
-    // Create admin cart entry
     const adminCartItem = new AdminCart({
       userId,
       userName: user.name,
       userEmail: user.email,
       userMobile: user.mobile,
       tests: cart.map(item => ({
-        testId: item.testId || item.subCategoryId._id,
-        testName: item.subCategoryId?.title || item.testId?.title || "Unknown Test",
+        testId: item.testId?._id || item.subCategoryId?._id,
+        testName: item.subCategoryId?.title || item.testId?.testName || "Unknown Test",
         price: item.subCategoryId?.oldPrice || item.testId?.oldPrice || 0,
         quantity: item.quantity || 1
       })),
@@ -39,20 +48,28 @@ router.post("/save", verifyToken, async (req, res) => {
     });
 
     await adminCartItem.save();
-    res.status(201).json({ success: true, message: "Cart saved successfully" });
+    console.log("Saved cart:", adminCartItem); 
+    res.status(201).json({ 
+      success: true,
+      message: "Test request submitted successfully! Admin will contact you soon."
+    });
+    
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "Server error" });
+    res.status(500).json({ 
+      success: false,
+      message: process.env.NODE_ENV === 'development' 
+        ? err.message 
+        : "Failed to process your request. Please try again."
+    });
   }
 });
+
+
 
 // Get all carts for admin view
 router.get("/", verifyToken, async (req, res) => {
   try {
-    if (req.user.role !== "admin") {
-      return res.status(403).json({ error: "Unauthorized access" });
-    }
-
     const carts = await AdminCart.find()
       .sort({ createdAt: -1 })
       .populate("userId", "name email mobile");
